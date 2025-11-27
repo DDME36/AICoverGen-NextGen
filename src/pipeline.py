@@ -104,7 +104,9 @@ def generate_cover(song_input: str, voice_model: str, pitch_change: int = 0,
                    pitch_change_all: int = 0, reverb_room_size: float = None,
                    reverb_wet: float = None, reverb_dry: float = None,
                    reverb_damping: float = None, output_format: str = None,
-                   separate_backing: bool = False, progress_callback=None) -> str:
+                   separate_backing: bool = False, 
+                   clean_audio: bool = False, clean_strength: float = 0.7,
+                   progress_callback=None) -> str:
     """
     Main pipeline: Generate AI cover from song input
     Returns: path to final cover audio
@@ -184,7 +186,8 @@ def generate_cover(song_input: str, voice_model: str, pitch_change: int = 0,
             pitch_change=final_pitch, f0_method=f0_method,
             index_rate=index_rate, filter_radius=filter_radius,
             rms_mix_rate=rms_mix_rate, protect=protect,
-            crepe_hop_length=crepe_hop_length
+            crepe_hop_length=crepe_hop_length,
+            clean_audio=clean_audio, clean_strength=clean_strength
         )
     
     # Apply effects

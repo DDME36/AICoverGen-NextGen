@@ -44,5 +44,8 @@ requests
 tqdm
 ffmpeg-python
 
-# ===== Optional (for noise reduction) =====
-# deepfilternet  # Uncomment if needed
+# ===== Noise Reduction =====
+noisereduce>=3.0.0
+
+# ===== Optional =====
+# deepfilternet  # Advanced noise reduction (uncomment if needed)
