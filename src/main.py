@@ -327,7 +327,6 @@ def separate_backing_vocals(vocals_path, output_dir):
         print("⚠️  audio-separator not available, skipping backing vocal separation")
         return vocals_path, None
     
-    # Check if model exists (will be downloaded automatically by audio-separator)
     try:
         print("[~] Separating main vocals from backing vocals (KARA_2)...")
         
@@ -342,18 +341,32 @@ def separate_backing_vocals(vocals_path, output_dir):
         main_vocals_path = None
         backing_vocals_path = None
         
+        # First pass: check returned paths
         for f in output_files:
-            f_lower = os.path.basename(f).lower()
+            # Make sure path is absolute
             if not os.path.isabs(f):
                 f = os.path.join(output_dir, os.path.basename(f))
+            
+            f_lower = os.path.basename(f).lower()
             
             # KARA model outputs are INVERTED:
             # (Vocals) = backing/harmony vocals
             # (Instrumental) = main/lead vocals
-            if '(vocals)' in f_lower:
-                backing_vocals_path = f  # This is actually backing!
-            elif '(instrumental)' in f_lower:
-                main_vocals_path = f  # This is actually main vocals!
+            if '(vocals)' in f_lower and 'kara' in f_lower:
+                backing_vocals_path = f
+            elif '(instrumental)' in f_lower and 'kara' in f_lower:
+                main_vocals_path = f
+        
+        # Fallback: scan output directory for KARA files
+        if main_vocals_path is None or not os.path.exists(main_vocals_path):
+            for file in os.listdir(output_dir):
+                file_lower = file.lower()
+                if 'kara' in file_lower and file.endswith('.wav'):
+                    full_path = os.path.join(output_dir, file)
+                    if '(instrumental)' in file_lower:
+                        main_vocals_path = full_path
+                    elif '(vocals)' in file_lower:
+                        backing_vocals_path = full_path
         
         if main_vocals_path and os.path.exists(main_vocals_path):
             print(f"✓ Main vocals: {os.path.basename(main_vocals_path)}")
