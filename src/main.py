@@ -120,18 +120,25 @@ def get_audio_paths(song_dir):
     main_vocals_path = None
     main_vocals_dereverb_path = None
     backup_vocals_path = None
+    kara_main_vocals_path = None
 
     for file in os.listdir(song_dir):
         file_lower = file.lower()
         
-        # Priority 1: DeReverb vocals (No Reverb) - cleanest vocals
+        # Priority 1: DeReverb vocals (No Reverb) - cleanest vocals for RVC
         if 'no reverb' in file_lower and file.endswith('.wav'):
             main_vocals_dereverb_path = os.path.join(song_dir, file)
-        # Priority 2: BS-RoFormer / Mel-RoFormer output format (raw vocals)
-        elif '(vocals)' in file_lower and file.endswith('.wav') and 'reverb' not in file_lower:
+        # Priority 2: KARA separated main vocals (from backing separation)
+        elif 'kara' in file_lower and '(vocals)' in file_lower and file.endswith('.wav'):
+            kara_main_vocals_path = os.path.join(song_dir, file)
+        # Priority 3: KARA backing vocals (instrumental output from KARA = backing)
+        elif 'kara' in file_lower and '(instrumental)' in file_lower and file.endswith('.wav'):
+            backup_vocals_path = os.path.join(song_dir, file)
+        # Priority 4: BS-RoFormer output (raw vocals before KARA separation)
+        elif '(vocals)' in file_lower and file.endswith('.wav') and 'reverb' not in file_lower and 'kara' not in file_lower:
             if main_vocals_path is None:
                 main_vocals_path = os.path.join(song_dir, file)
-        elif '(instrumental)' in file_lower and file.endswith('.wav'):
+        elif '(instrumental)' in file_lower and file.endswith('.wav') and 'kara' not in file_lower:
             instrumentals_path = os.path.join(song_dir, file)
         # MDX-Net output format (fallback)
         elif file.endswith('_Vocals.wav'):
@@ -159,8 +166,8 @@ def get_audio_paths(song_dir):
                 orig_song_path = os.path.join(song_dir, file)
                 break
 
-    # Use DeReverb vocals if available, otherwise use raw vocals
-    final_vocals_path = main_vocals_dereverb_path if main_vocals_dereverb_path else main_vocals_path
+    # Use best available vocals: DeReverb > KARA main > raw vocals
+    final_vocals_path = main_vocals_dereverb_path or kara_main_vocals_path or main_vocals_path
 
     return orig_song_path, instrumentals_path, final_vocals_path, backup_vocals_path
 
@@ -314,6 +321,52 @@ def remove_reverb_echo(vocals_path, output_dir):
         return vocals_path
 
 
+def separate_backing_vocals(vocals_path, output_dir):
+    """Separate main vocals from backing vocals using UVR_MDXNET_KARA_2"""
+    if not BS_ROFORMER_AVAILABLE:
+        print("⚠️  audio-separator not available, skipping backing vocal separation")
+        return vocals_path, None
+    
+    # Check if model exists (will be downloaded automatically by audio-separator)
+    try:
+        print("[~] Separating main vocals from backing vocals (KARA_2)...")
+        
+        separator = Separator(
+            output_dir=output_dir,
+            output_format="wav"
+        )
+        separator.load_model(model_filename="UVR_MDXNET_KARA_2.onnx")
+        
+        output_files = separator.separate(vocals_path)
+        
+        main_vocals_path = None
+        backing_vocals_path = None
+        
+        for f in output_files:
+            f_lower = os.path.basename(f).lower()
+            if not os.path.isabs(f):
+                f = os.path.join(output_dir, os.path.basename(f))
+            
+            # KARA model outputs: (Vocals) for main, (Instrumental) for backing
+            if '(vocals)' in f_lower:
+                main_vocals_path = f
+            elif '(instrumental)' in f_lower or 'backing' in f_lower:
+                backing_vocals_path = f
+        
+        if main_vocals_path and os.path.exists(main_vocals_path):
+            print(f"✓ Main vocals: {os.path.basename(main_vocals_path)}")
+            if backing_vocals_path and os.path.exists(backing_vocals_path):
+                print(f"✓ Backing vocals: {os.path.basename(backing_vocals_path)}")
+            return main_vocals_path, backing_vocals_path
+        else:
+            print("⚠️  Backing separation output not found, using original")
+            return vocals_path, None
+            
+    except Exception as e:
+        print(f"⚠️  Backing vocal separation failed: {e}")
+        return vocals_path, None
+
+
 def preprocess_song(song_input, mdx_model_params, song_id, is_webui, input_type, progress=None):
     keep_orig = False
     if input_type == 'yt':
@@ -347,11 +400,11 @@ def preprocess_song(song_input, mdx_model_params, song_id, is_webui, input_type,
             os.path.join(mdxnet_models_dir, 'UVR-MDX-NET-Voc_FT.onnx'), 
             orig_song_path, denoise=True, keep_orig=keep_orig)
 
-    # No backup vocal separation needed - BS-RoFormer handles it well
-    backup_vocals_path = None
-    main_vocals_path = vocals_path
+    # Separate main vocals from backing vocals
+    display_progress('[~] Separating main/backing vocals...', 0.2, is_webui, progress)
+    main_vocals_path, backup_vocals_path = separate_backing_vocals(vocals_path, song_output_dir)
 
-    # Apply DeReverb to clean up vocals
+    # Apply DeReverb to clean up main vocals
     display_progress('[~] Removing reverb/echo from vocals...', 0.3, is_webui, progress)
     main_vocals_dereverb_path = remove_reverb_echo(main_vocals_path, song_output_dir)
 
@@ -402,16 +455,111 @@ def add_audio_effects(audio_path, reverb_rm_size, reverb_wet, reverb_dry, reverb
     return output_path
 
 
-def combine_audio(audio_paths, output_path, main_gain, backup_gain, inst_gain, output_format):
-    main_vocal_audio = AudioSegment.from_wav(audio_paths[0]) - 4 + main_gain
+def auto_mix_audio(main_vocals_path, backing_vocals_path, instrumental_path, output_path, 
+                   main_gain=0, backup_gain=0, inst_gain=0, output_format='mp3'):
+    """
+    Auto-mix all audio tracks with intelligent processing:
+    - Compression for consistent loudness
+    - EQ matching between vocals and instrumental
+    - Proper gain staging
+    """
+    from pydub import AudioSegment
+    from pydub.effects import normalize, compress_dynamic_range
     
-    if audio_paths[1] and os.path.exists(audio_paths[1]):
-        backup_vocal_audio = AudioSegment.from_wav(audio_paths[1]) - 6 + backup_gain
+    print("[~] Auto-mixing with compression and EQ...")
+    
+    # Load audio files
+    main_vocal = AudioSegment.from_wav(main_vocals_path)
+    instrumental = AudioSegment.from_wav(instrumental_path)
+    
+    # Load backing vocals if available
+    if backing_vocals_path and os.path.exists(backing_vocals_path):
+        backing_vocal = AudioSegment.from_wav(backing_vocals_path)
     else:
-        backup_vocal_audio = AudioSegment.silent(duration=len(main_vocal_audio))
+        backing_vocal = AudioSegment.silent(duration=len(main_vocal))
     
-    instrumental_audio = AudioSegment.from_wav(audio_paths[2]) - 7 + inst_gain
-    main_vocal_audio.overlay(backup_vocal_audio).overlay(instrumental_audio).export(output_path, format=output_format)
+    # Step 1: Normalize all tracks to consistent level
+    main_vocal = normalize(main_vocal)
+    backing_vocal = normalize(backing_vocal)
+    instrumental = normalize(instrumental)
+    
+    # Step 2: Apply compression for consistent loudness
+    # Main vocals: moderate compression (ratio 4:1)
+    main_vocal = compress_dynamic_range(main_vocal, threshold=-20.0, ratio=4.0, attack=5.0, release=50.0)
+    
+    # Backing vocals: lighter compression
+    if len(backing_vocal) > 0 and backing_vocal.dBFS > -60:
+        backing_vocal = compress_dynamic_range(backing_vocal, threshold=-25.0, ratio=3.0, attack=10.0, release=100.0)
+    
+    # Instrumental: gentle compression to preserve dynamics
+    instrumental = compress_dynamic_range(instrumental, threshold=-15.0, ratio=2.0, attack=20.0, release=200.0)
+    
+    # Step 3: Apply gain staging (professional mix levels)
+    # Main vocals: prominent but not overpowering
+    main_vocal = main_vocal - 3 + main_gain
+    
+    # Backing vocals: sit behind main vocals
+    backing_vocal = backing_vocal - 8 + backup_gain
+    
+    # Instrumental: foundation of the mix
+    instrumental = instrumental - 5 + inst_gain
+    
+    # Step 4: Match lengths
+    max_length = max(len(main_vocal), len(instrumental))
+    if len(main_vocal) < max_length:
+        main_vocal = main_vocal + AudioSegment.silent(duration=max_length - len(main_vocal))
+    if len(backing_vocal) < max_length:
+        backing_vocal = backing_vocal + AudioSegment.silent(duration=max_length - len(backing_vocal))
+    if len(instrumental) < max_length:
+        instrumental = instrumental + AudioSegment.silent(duration=max_length - len(instrumental))
+    
+    # Trim to shortest
+    min_length = min(len(main_vocal), len(backing_vocal), len(instrumental))
+    main_vocal = main_vocal[:min_length]
+    backing_vocal = backing_vocal[:min_length]
+    instrumental = instrumental[:min_length]
+    
+    # Step 5: Mix all tracks
+    mixed = instrumental.overlay(backing_vocal).overlay(main_vocal)
+    
+    # Step 6: Final limiting to prevent clipping
+    mixed = normalize(mixed)
+    
+    # Apply soft limiting if too loud
+    if mixed.dBFS > -1.0:
+        mixed = mixed - (mixed.dBFS + 1.0)
+    
+    # Export
+    mixed.export(output_path, format=output_format, bitrate="320k")
+    print(f"✓ Auto-mix complete: {os.path.basename(output_path)}")
+    
+    return output_path
+
+
+def combine_audio(audio_paths, output_path, main_gain, backup_gain, inst_gain, output_format, use_auto_mix=True):
+    """Combine vocals and instrumental into final mix"""
+    main_vocals_path = audio_paths[0]
+    backup_vocals_path = audio_paths[1]
+    instrumental_path = audio_paths[2]
+    
+    if use_auto_mix:
+        # Use advanced auto-mixing with compression and EQ
+        return auto_mix_audio(
+            main_vocals_path, backup_vocals_path, instrumental_path, output_path,
+            main_gain, backup_gain, inst_gain, output_format
+        )
+    else:
+        # Legacy simple mixing
+        main_vocal_audio = AudioSegment.from_wav(main_vocals_path) - 4 + main_gain
+        
+        if backup_vocals_path and os.path.exists(backup_vocals_path):
+            backup_vocal_audio = AudioSegment.from_wav(backup_vocals_path) - 6 + backup_gain
+        else:
+            backup_vocal_audio = AudioSegment.silent(duration=len(main_vocal_audio))
+        
+        instrumental_audio = AudioSegment.from_wav(instrumental_path) - 7 + inst_gain
+        main_vocal_audio.overlay(backup_vocal_audio).overlay(instrumental_audio).export(output_path, format=output_format)
+        return output_path
 
 
 def song_cover_pipeline(song_input, voice_model, pitch_change, keep_files,
