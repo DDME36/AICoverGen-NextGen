@@ -128,11 +128,11 @@ def get_audio_paths(song_dir):
         # Priority 1: DeReverb vocals (No Reverb) - cleanest vocals for RVC
         if 'no reverb' in file_lower and file.endswith('.wav'):
             main_vocals_dereverb_path = os.path.join(song_dir, file)
-        # Priority 2: KARA separated main vocals (from backing separation)
-        elif 'kara' in file_lower and '(vocals)' in file_lower and file.endswith('.wav'):
-            kara_main_vocals_path = os.path.join(song_dir, file)
-        # Priority 3: KARA backing vocals (instrumental output from KARA = backing)
+        # Priority 2: KARA separated - outputs are INVERTED!
+        # KARA (Instrumental) = main vocals, KARA (Vocals) = backing vocals
         elif 'kara' in file_lower and '(instrumental)' in file_lower and file.endswith('.wav'):
+            kara_main_vocals_path = os.path.join(song_dir, file)
+        elif 'kara' in file_lower and '(vocals)' in file_lower and file.endswith('.wav'):
             backup_vocals_path = os.path.join(song_dir, file)
         # Priority 4: BS-RoFormer output (raw vocals before KARA separation)
         elif '(vocals)' in file_lower and file.endswith('.wav') and 'reverb' not in file_lower and 'kara' not in file_lower:
@@ -347,11 +347,13 @@ def separate_backing_vocals(vocals_path, output_dir):
             if not os.path.isabs(f):
                 f = os.path.join(output_dir, os.path.basename(f))
             
-            # KARA model outputs: (Vocals) for main, (Instrumental) for backing
+            # KARA model outputs are INVERTED:
+            # (Vocals) = backing/harmony vocals
+            # (Instrumental) = main/lead vocals
             if '(vocals)' in f_lower:
-                main_vocals_path = f
-            elif '(instrumental)' in f_lower or 'backing' in f_lower:
-                backing_vocals_path = f
+                backing_vocals_path = f  # This is actually backing!
+            elif '(instrumental)' in f_lower:
+                main_vocals_path = f  # This is actually main vocals!
         
         if main_vocals_path and os.path.exists(main_vocals_path):
             print(f"✓ Main vocals: {os.path.basename(main_vocals_path)}")
