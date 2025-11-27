@@ -112,8 +112,7 @@ class VC(object):
             try:
                 if hasattr(self, "model_fcpe") == False:
                     from pitch_extraction import FCPE
-                    self.model_fcpe = FCPE(os.path.join(BASE_DIR, 'rvc_models', 'fcpe.pt'),
-                                          device=self.device)
+                    self.model_fcpe = FCPE(device=self.device)
                 f0 = self.model_fcpe.compute_f0(x, p_len=p_len)
                 print("  Using FCPE pitch detection (smoother)")
             except Exception as e:
@@ -124,7 +123,7 @@ class VC(object):
                                             is_half=self.is_half, device=self.device)
                 f0 = self.model_rmvpe.infer_from_audio(x, thred=0.03)
         elif f0_method == "hybrid":
-            # RMVPE + FCPE hybrid for best accuracy (98%+)
+            # RMVPE + FCPE hybrid for best accuracy (97%+)
             try:
                 # Load RMVPE
                 if hasattr(self, "model_rmvpe") == False:
@@ -136,8 +135,7 @@ class VC(object):
                 # Load FCPE
                 if hasattr(self, "model_fcpe") == False:
                     from pitch_extraction import FCPE
-                    self.model_fcpe = FCPE(os.path.join(BASE_DIR, 'rvc_models', 'fcpe.pt'),
-                                          device=self.device)
+                    self.model_fcpe = FCPE(device=self.device)
                 f0_fcpe = self.model_fcpe.compute_f0(x, p_len=len(f0_rmvpe))
                 
                 # Align lengths

@@ -1,10 +1,11 @@
 """
 AICoverGen NextGen - Voice Converter
-RVC voice conversion
+RVC voice conversion with optimizations
 """
 
 import gc
 import os
+import torch
 
 # Handle both module and script execution
 try:
@@ -19,6 +20,18 @@ _model_cache = {
     'hubert': None,
     'config': None,
 }
+
+# Enable PyTorch optimizations
+def _enable_optimizations():
+    """Enable PyTorch performance optimizations"""
+    if torch.cuda.is_available():
+        # Enable cuDNN benchmark for faster convolutions
+        torch.backends.cudnn.benchmark = True
+        # Enable TF32 for faster matrix operations on Ampere+ GPUs
+        torch.backends.cuda.matmul.allow_tf32 = True
+        torch.backends.cudnn.allow_tf32 = True
+
+_enable_optimizations()
 
 
 def get_rvc_model_files(voice_model: str) -> tuple[str, str]:
@@ -89,9 +102,11 @@ def convert_voice(voice_model: str, input_path: str, output_path: str,
     
     print(f"✓ Voice conversion complete")
     
-    # Cleanup
-    del cpt
+    # Cleanup memory
+    del cpt, net_g, vc
     gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
     
     return output_path
 

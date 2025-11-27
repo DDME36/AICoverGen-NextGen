@@ -1,16 +1,26 @@
 """
 AICoverGen NextGen - Audio Separator
-Vocal separation and DeReverb processing
+Vocal separation and DeReverb processing with optimizations
 """
 
+import gc
 import os
 from pathlib import Path
+
+import torch
 
 # Handle both module and script execution
 try:
     from . import config
 except ImportError:
     import config
+
+
+def _clear_gpu_memory():
+    """Clear GPU memory after heavy operations"""
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
 
 # Try to import audio-separator
 try:
@@ -70,6 +80,9 @@ def separate_vocals_bs_roformer(input_path: str, output_dir: str) -> tuple[str |
     if instrumental_path:
         print(f"✓ Instrumental: {os.path.basename(instrumental_path)}")
     
+    # Clear GPU memory after separation
+    _clear_gpu_memory()
+    
     return vocals_path, instrumental_path
 
 
@@ -121,6 +134,7 @@ def remove_reverb(vocals_path: str, output_dir: str) -> str:
         
         if clean_vocals_path and os.path.exists(clean_vocals_path):
             print(f"✓ DeReverb complete: {os.path.basename(clean_vocals_path)}")
+            _clear_gpu_memory()
             return clean_vocals_path
         else:
             print("⚠️  DeReverb output not found, using original")
@@ -129,6 +143,8 @@ def remove_reverb(vocals_path: str, output_dir: str) -> str:
     except Exception as e:
         print(f"⚠️  DeReverb failed: {e}")
         return vocals_path
+    finally:
+        _clear_gpu_memory()
 
 
 def find_cached_audio(song_dir: str) -> tuple[str | None, str | None, str | None]:

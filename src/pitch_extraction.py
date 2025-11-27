@@ -5,11 +5,17 @@ FCPE (Fast Context-aware Pitch Estimation) implementation
 
 import numpy as np
 import torch
-import torch.nn.functional as F
-from torch import nn
 import os
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# Try to import torchfcpe (official FCPE implementation)
+TORCHFCPE_AVAILABLE = False
+try:
+    from torchfcpe import spawn_bundled_infer_model
+    TORCHFCPE_AVAILABLE = True
+except ImportError:
+    pass
 
 
 class FCPE:
@@ -23,26 +29,20 @@ class FCPE:
         self.hop_length = hop_length
         self.sampling_rate = sampling_rate
         self.model = None
+        self.use_torchfcpe = False
         
-        if model_path is None:
-            model_path = os.path.join(BASE_DIR, 'rvc_models', 'fcpe.pt')
+        # Try torchfcpe first (official implementation)
+        if TORCHFCPE_AVAILABLE:
+            try:
+                self.model = spawn_bundled_infer_model(device=device)
+                self.use_torchfcpe = True
+                print("✓ FCPE loaded (torchfcpe)")
+                return
+            except Exception as e:
+                print(f"⚠️  torchfcpe failed: {e}")
         
-        if os.path.exists(model_path):
-            self._load_model(model_path)
-        else:
-            print(f"⚠️  FCPE model not found at {model_path}")
-            print("   Will use fallback pitch detection")
-    
-    def _load_model(self, model_path):
-        """Load FCPE model"""
-        try:
-            # FCPE uses a simple CNN architecture
-            self.model = torch.jit.load(model_path, map_location=self.device)
-            self.model.eval()
-            print("✓ FCPE model loaded")
-        except Exception as e:
-            print(f"⚠️  Failed to load FCPE model: {e}")
-            self.model = None
+        # Fallback message
+        print("⚠️  FCPE not available, will use librosa pyin fallback")
     
     def compute_f0(self, audio, p_len=None, f0_min=50, f0_max=1100):
         """
@@ -57,17 +57,25 @@ class FCPE:
         Returns:
             f0: numpy array of F0 values
         """
-        if self.model is None:
-            # Fallback to simple pitch detection
+        if self.use_torchfcpe and self.model is not None:
+            return self._compute_torchfcpe(audio, p_len, f0_min, f0_max)
+        else:
             return self._fallback_f0(audio, p_len, f0_min, f0_max)
-        
+    
+    def _compute_torchfcpe(self, audio, p_len, f0_min, f0_max):
+        """Compute F0 using torchfcpe"""
         try:
             # Prepare audio tensor
-            audio_tensor = torch.from_numpy(audio).float().unsqueeze(0).to(self.device)
+            audio_tensor = torch.from_numpy(audio).float().unsqueeze(0).unsqueeze(-1).to(self.device)
             
             # Run inference
             with torch.no_grad():
-                f0 = self.model(audio_tensor, self.sampling_rate, self.hop_length)
+                f0 = self.model.infer(
+                    audio_tensor,
+                    sr=self.sampling_rate,
+                    decoder_mode="local_argmax",
+                    threshold=0.006
+                )
                 f0 = f0.squeeze().cpu().numpy()
             
             # Post-process
@@ -85,14 +93,13 @@ class FCPE:
             return f0
             
         except Exception as e:
-            print(f"⚠️  FCPE inference failed: {e}")
+            print(f"⚠️  torchfcpe inference failed: {e}")
             return self._fallback_f0(audio, p_len, f0_min, f0_max)
     
     def _fallback_f0(self, audio, p_len, f0_min, f0_max):
-        """Fallback pitch detection using autocorrelation"""
+        """Fallback pitch detection using librosa pyin"""
         import librosa
         
-        # Use librosa's pyin for fallback
         try:
             f0, voiced_flag, voiced_probs = librosa.pyin(
                 audio.astype(np.float32),
@@ -111,8 +118,8 @@ class FCPE:
                 )
             
             return f0
-        except:
-            # Ultimate fallback - zeros
+        except Exception as e:
+            print(f"⚠️  Fallback f0 failed: {e}")
             return np.zeros(p_len if p_len else len(audio) // self.hop_length)
 
 
@@ -122,8 +129,9 @@ class HybridPitchExtractor:
     Takes median of both for more robust results
     """
     
-    def __init__(self, device="cuda"):
+    def __init__(self, device="cuda", is_half=True):
         self.device = device
+        self.is_half = is_half
         self.rmvpe = None
         self.fcpe = None
     
@@ -131,12 +139,11 @@ class HybridPitchExtractor:
         if self.rmvpe is None:
             from rmvpe import RMVPE
             rmvpe_path = os.path.join(BASE_DIR, 'rvc_models', 'rmvpe.pt')
-            self.rmvpe = RMVPE(rmvpe_path, is_half=True, device=self.device)
+            self.rmvpe = RMVPE(rmvpe_path, is_half=self.is_half, device=self.device)
     
     def _load_fcpe(self):
         if self.fcpe is None:
-            fcpe_path = os.path.join(BASE_DIR, 'rvc_models', 'fcpe.pt')
-            self.fcpe = FCPE(fcpe_path, device=self.device)
+            self.fcpe = FCPE(device=self.device)
     
     def compute_f0(self, audio, p_len=None, thred=0.03):
         """
@@ -155,7 +162,8 @@ class HybridPitchExtractor:
         # Try FCPE
         try:
             self._load_fcpe()
-            f0_fcpe = self.fcpe.compute_f0(audio, p_len=len(results[0]) if results else p_len)
+            target_len = len(results[0]) if results else p_len
+            f0_fcpe = self.fcpe.compute_f0(audio, p_len=target_len)
             results.append(f0_fcpe)
         except Exception as e:
             print(f"  FCPE failed: {e}")
