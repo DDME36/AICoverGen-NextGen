@@ -42,6 +42,12 @@ MODELS = {
         "dir": MDX_MODELS_DIR,
         "description": "UVR DeEcho-DeReverb (Vocal Cleanup)"
     },
+    # Mel-Band RoFormer Karaoke - Separate backing vocals from instrumental
+    "mel_band_roformer_karaoke_becruily.ckpt": {
+        "url": "https://huggingface.co/becruily/mel-band-roformer-karaoke/resolve/main/mel_band_roformer_karaoke_becruily.ckpt",
+        "dir": MDX_MODELS_DIR,
+        "description": "Mel-Band RoFormer Karaoke (Backing Vocal Separation)"
+    },
 }
 
 

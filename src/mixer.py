@@ -64,9 +64,11 @@ def pitch_shift(audio_path: str, pitch_change: int) -> str:
 
 def auto_mix(main_vocals_path: str, instrumental_path: str, output_path: str,
              main_gain: int = 0, inst_gain: int = 0, 
-             output_format: str = None) -> str:
+             output_format: str = None, backing_vocals_path: str = None,
+             backing_gain: int = -6) -> str:
     """
     Auto-mix vocals and instrumental with compression and gain staging
+    Optionally includes backing vocals for smoother blend
     """
     output_format = output_format or config.DEFAULT_OUTPUT_FORMAT
     
@@ -75,6 +77,19 @@ def auto_mix(main_vocals_path: str, instrumental_path: str, output_path: str,
     # Load audio
     main_vocal = AudioSegment.from_wav(main_vocals_path)
     instrumental = AudioSegment.from_wav(instrumental_path)
+    
+    # Load backing vocals if available
+    backing_vocal = None
+    if backing_vocals_path and os.path.exists(backing_vocals_path):
+        print(f"    Including backing vocals for smoother mix")
+        backing_vocal = AudioSegment.from_wav(backing_vocals_path)
+        backing_vocal = normalize(backing_vocal)
+        # Compress backing vocals lightly
+        backing_vocal = compress_dynamic_range(
+            backing_vocal, threshold=-18.0, ratio=2.5, attack=10.0, release=100.0
+        )
+        # Lower backing vocals in mix
+        backing_vocal = backing_vocal + backing_gain
     
     # Normalize
     main_vocal = normalize(main_vocal)
@@ -97,8 +112,16 @@ def auto_mix(main_vocals_path: str, instrumental_path: str, output_path: str,
     main_vocal = main_vocal[:min_length]
     instrumental = instrumental[:min_length]
     
-    # Mix
-    mixed = instrumental.overlay(main_vocal)
+    # Mix instrumental first
+    mixed = instrumental
+    
+    # Add backing vocals if available (blend with instrumental)
+    if backing_vocal:
+        backing_vocal = backing_vocal[:min_length]
+        mixed = mixed.overlay(backing_vocal)
+    
+    # Overlay main vocals on top
+    mixed = mixed.overlay(main_vocal)
     
     # Final normalize and limit
     mixed = normalize(mixed)

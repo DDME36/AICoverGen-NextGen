@@ -147,6 +147,70 @@ def remove_reverb(vocals_path: str, output_dir: str) -> str:
         _clear_gpu_memory()
 
 
+def separate_backing_vocals(instrumental_path: str, output_dir: str) -> tuple[str | None, str | None]:
+    """
+    Separate backing vocals from instrumental using mel_band_roformer_karaoke
+    This creates a cleaner instrumental without backing vocals bleeding through
+    Returns: (clean_instrumental_path, backing_vocals_path)
+    """
+    if not SEPARATOR_AVAILABLE:
+        print("⚠️  audio-separator not available, skipping backing vocal separation")
+        return instrumental_path, None
+    
+    try:
+        print("[~] Separating backing vocals (mel_band_roformer_karaoke SDR 10.19)...")
+        
+        separator = Separator(
+            output_dir=output_dir,
+            output_format="wav"
+        )
+        separator.load_model(model_filename=config.MEL_BAND_ROFORMER_KARAOKE)
+        
+        output_files = separator.separate(instrumental_path)
+        
+        clean_instrumental = None
+        backing_vocals = None
+        
+        for f in output_files:
+            f_lower = os.path.basename(f).lower()
+            if not os.path.isabs(f):
+                f = os.path.join(output_dir, os.path.basename(f))
+            
+            # Karaoke model outputs: (Instrumental) = clean, (Vocals) = backing
+            if '(instrumental)' in f_lower or 'karaoke' in f_lower:
+                clean_instrumental = f
+            elif '(vocals)' in f_lower:
+                backing_vocals = f
+        
+        # Fallback: scan directory for karaoke outputs
+        if clean_instrumental is None or backing_vocals is None:
+            for file in os.listdir(output_dir):
+                file_lower = file.lower()
+                if 'karaoke' in file_lower or ('instrumental' in file_lower and 'mel_band' in file_lower):
+                    if '(instrumental)' in file_lower:
+                        clean_instrumental = os.path.join(output_dir, file)
+                    elif '(vocals)' in file_lower:
+                        backing_vocals = os.path.join(output_dir, file)
+        
+        if clean_instrumental and os.path.exists(clean_instrumental):
+            print(f"✓ Clean instrumental: {os.path.basename(clean_instrumental)}")
+        else:
+            print("⚠️  Clean instrumental not found, using original")
+            clean_instrumental = instrumental_path
+            
+        if backing_vocals and os.path.exists(backing_vocals):
+            print(f"✓ Backing vocals extracted: {os.path.basename(backing_vocals)}")
+        
+        _clear_gpu_memory()
+        return clean_instrumental, backing_vocals
+        
+    except Exception as e:
+        print(f"⚠️  Backing vocal separation failed: {e}")
+        return instrumental_path, None
+    finally:
+        _clear_gpu_memory()
+
+
 def find_cached_audio(song_dir: str) -> tuple[str | None, str | None, str | None]:
     """
     Find cached audio files in song directory

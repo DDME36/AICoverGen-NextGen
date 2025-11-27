@@ -11,24 +11,24 @@ from urllib.parse import urlparse
 try:
     from . import config
     from .downloader import get_youtube_video_id, download_from_youtube, convert_to_stereo, get_file_hash
-    from .separator import separate_vocals_bs_roformer, remove_reverb, find_cached_audio, SEPARATOR_AVAILABLE
+    from .separator import separate_vocals_bs_roformer, remove_reverb, separate_backing_vocals, find_cached_audio, SEPARATOR_AVAILABLE
     from .voice_converter import convert_voice
     from .mixer import add_vocal_effects, pitch_shift, auto_mix
     from .mdx import run_mdx
 except ImportError:
     import config
     from downloader import get_youtube_video_id, download_from_youtube, convert_to_stereo, get_file_hash
-    from separator import separate_vocals_bs_roformer, remove_reverb, find_cached_audio, SEPARATOR_AVAILABLE
+    from separator import separate_vocals_bs_roformer, remove_reverb, separate_backing_vocals, find_cached_audio, SEPARATOR_AVAILABLE
     from voice_converter import convert_voice
     from mixer import add_vocal_effects, pitch_shift, auto_mix
     from mdx import run_mdx
 
 
 def preprocess_song(song_input: str, song_id: str, input_type: str, 
-                    progress_callback=None) -> tuple:
+                    progress_callback=None, separate_backing: bool = True) -> tuple:
     """
     Download and separate vocals from song
-    Returns: (orig_path, vocals_path, instrumental_path, dereverb_vocals_path)
+    Returns: (orig_path, vocals_path, instrumental_path, dereverb_vocals_path, backing_vocals_path)
     """
     song_output_dir = str(config.get_output_dir(song_id))
     
@@ -64,13 +64,26 @@ def preprocess_song(song_input: str, song_id: str, input_type: str,
             orig_song_path, song_output_dir
         )
     
-    # DeReverb
+    # DeReverb on main vocals
     if progress_callback:
         progress_callback('[~] Removing reverb/echo...', 0.2)
     
     dereverb_vocals_path = remove_reverb(vocals_path, song_output_dir)
     
-    return orig_song_path, vocals_path, instrumental_path, dereverb_vocals_path
+    # Separate backing vocals from instrumental for cleaner mix
+    backing_vocals_path = None
+    if separate_backing and instrumental_path:
+        if progress_callback:
+            progress_callback('[~] Separating backing vocals (mel_band_roformer_karaoke)...', 0.3)
+        
+        clean_instrumental, backing_vocals_path = separate_backing_vocals(
+            instrumental_path, song_output_dir
+        )
+        # Use clean instrumental (without backing vocals)
+        if clean_instrumental and clean_instrumental != instrumental_path:
+            instrumental_path = clean_instrumental
+    
+    return orig_song_path, vocals_path, instrumental_path, dereverb_vocals_path, backing_vocals_path
 
 
 def _fallback_mdx_separation(orig_path: str, output_dir: str) -> tuple:
@@ -118,23 +131,32 @@ def generate_cover(song_input: str, voice_model: str, pitch_change: int = 0,
     song_dir = str(config.get_output_dir(song_id))
     
     # Check cache or preprocess
+    backing_vocals_path = None
     if not os.path.exists(song_dir) or not os.listdir(song_dir):
         os.makedirs(song_dir, exist_ok=True)
-        orig_path, vocals_path, instrumental_path, dereverb_path = preprocess_song(
+        orig_path, vocals_path, instrumental_path, dereverb_path, backing_vocals_path = preprocess_song(
             song_input, song_id, input_type, progress_callback
         )
     else:
         # Use cached files
         orig_path, instrumental_path, dereverb_path = find_cached_audio(song_dir)
         
+        # Check for cached backing vocals and clean instrumental
+        backing_vocals_path = _find_backing_vocals(song_dir)
+        clean_instrumental = _find_clean_instrumental(song_dir)
+        if clean_instrumental:
+            instrumental_path = clean_instrumental
+        
         if instrumental_path is None or dereverb_path is None:
             print("[~] Cache incomplete, re-processing...")
-            orig_path, vocals_path, instrumental_path, dereverb_path = preprocess_song(
+            orig_path, vocals_path, instrumental_path, dereverb_path, backing_vocals_path = preprocess_song(
                 song_input, song_id, input_type, progress_callback
             )
         else:
             print(f"[✓] Using cached files from {song_dir}")
             print(f"    Vocals: {os.path.basename(dereverb_path)}")
+            if backing_vocals_path:
+                print(f"    Backing: {os.path.basename(backing_vocals_path)}")
     
     # Calculate final pitch
     final_pitch = pitch_change * 12 + pitch_change_all
@@ -184,7 +206,7 @@ def generate_cover(song_input: str, voice_model: str, pitch_change: int = 0,
         progress_callback('[~] Mixing final output...', 0.9)
     
     auto_mix(ai_vocals_mixed, instrumental_path, ai_cover_path,
-             main_gain, inst_gain, output_format)
+             main_gain, inst_gain, output_format, backing_vocals_path)
     
     # Cleanup intermediate files
     if not keep_files:
@@ -193,6 +215,24 @@ def generate_cover(song_input: str, voice_model: str, pitch_change: int = 0,
         _cleanup_intermediate_files(ai_vocals_mixed)
     
     return ai_cover_path
+
+
+def _find_backing_vocals(song_dir: str) -> str | None:
+    """Find cached backing vocals file"""
+    for file in os.listdir(song_dir):
+        file_lower = file.lower()
+        if 'karaoke' in file_lower and '(vocals)' in file_lower and file.endswith('.wav'):
+            return os.path.join(song_dir, file)
+    return None
+
+
+def _find_clean_instrumental(song_dir: str) -> str | None:
+    """Find cached clean instrumental (from karaoke separation)"""
+    for file in os.listdir(song_dir):
+        file_lower = file.lower()
+        if 'karaoke' in file_lower and '(instrumental)' in file_lower and file.endswith('.wav'):
+            return os.path.join(song_dir, file)
+    return None
 
 
 def _cleanup_intermediate_files(*files):
