@@ -118,13 +118,19 @@ def get_audio_paths(song_dir):
     orig_song_path = None
     instrumentals_path = None
     main_vocals_path = None
+    main_vocals_dereverb_path = None
     backup_vocals_path = None
 
     for file in os.listdir(song_dir):
         file_lower = file.lower()
-        # BS-RoFormer / Mel-RoFormer output format
-        if '(vocals)' in file_lower and file.endswith('.wav'):
-            main_vocals_path = os.path.join(song_dir, file)
+        
+        # Priority 1: DeReverb vocals (No Reverb) - cleanest vocals
+        if 'no reverb' in file_lower and file.endswith('.wav'):
+            main_vocals_dereverb_path = os.path.join(song_dir, file)
+        # Priority 2: BS-RoFormer / Mel-RoFormer output format (raw vocals)
+        elif '(vocals)' in file_lower and file.endswith('.wav') and 'reverb' not in file_lower:
+            if main_vocals_path is None:
+                main_vocals_path = os.path.join(song_dir, file)
         elif '(instrumental)' in file_lower and file.endswith('.wav'):
             instrumentals_path = os.path.join(song_dir, file)
         # MDX-Net output format (fallback)
@@ -153,7 +159,10 @@ def get_audio_paths(song_dir):
                 orig_song_path = os.path.join(song_dir, file)
                 break
 
-    return orig_song_path, instrumentals_path, main_vocals_path, backup_vocals_path
+    # Use DeReverb vocals if available, otherwise use raw vocals
+    final_vocals_path = main_vocals_dereverb_path if main_vocals_dereverb_path else main_vocals_path
+
+    return orig_song_path, instrumentals_path, final_vocals_path, backup_vocals_path
 
 
 def convert_to_stereo(audio_path):
@@ -444,15 +453,17 @@ def song_cover_pipeline(song_input, voice_model, pitch_change, keep_files,
             # Check if we already have separated audio files (use cache)
             vocals_path, main_vocals_path = None, None
             paths = get_audio_paths(song_dir)
-            orig_song_path, instrumentals_path, main_vocals_dereverb_path, backup_vocals_path = paths
+            orig_song_path, instrumentals_path, cached_vocals_path, backup_vocals_path = paths
 
             # Only re-process if essential files are missing
-            if instrumentals_path is None or main_vocals_dereverb_path is None:
+            if instrumentals_path is None or cached_vocals_path is None:
                 print(f"[~] Cache incomplete, re-processing song...")
                 orig_song_path, vocals_path, instrumentals_path, main_vocals_path, backup_vocals_path, main_vocals_dereverb_path = preprocess_song(song_input, mdx_model_params, song_id, is_webui, input_type, progress)
             else:
                 print(f"[✓] Using cached audio files from {song_dir}")
-                main_vocals_path = main_vocals_dereverb_path
+                print(f"    Vocals: {os.path.basename(cached_vocals_path)}")
+                main_vocals_path = cached_vocals_path
+                main_vocals_dereverb_path = cached_vocals_path
 
         pitch_change = pitch_change * 12 + pitch_change_all
         ai_vocals_path = os.path.join(song_dir, f'{os.path.splitext(os.path.basename(orig_song_path))[0]}_{voice_model}_p{pitch_change}_i{index_rate}_fr{filter_radius}_rms{rms_mix_rate}_pro{protect}_{f0_method}{"" if f0_method != "mangio-crepe" else f"_{crepe_hop_length}"}.wav')
