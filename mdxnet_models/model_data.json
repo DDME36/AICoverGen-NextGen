@@ -1,0 +1,23 @@
+{
+    "0ddfc0eb5792638ad5dc27850236c246": {
+        "compensate": 1.035,
+        "mdx_dim_f_set": 2048,
+        "mdx_dim_t_set": 8,
+        "mdx_n_fft_scale_set": 6144,
+        "primary_stem": "Vocals"
+    },
+    "26d308f91f3423a67dc69a6d12a8793d": {
+        "compensate": 1.035,
+        "mdx_dim_f_set": 2048,
+        "mdx_dim_t_set": 8,
+        "mdx_n_fft_scale_set": 8192,
+        "primary_stem": "Other"
+    },
+    "77d07b2667ddf05b9e3175941b4454a0": {
+        "compensate": 1.021,
+        "mdx_dim_f_set": 3072,
+        "mdx_dim_t_set": 8,
+        "mdx_n_fft_scale_set": 7680,
+        "primary_stem": "Vocals"
+    }
+}

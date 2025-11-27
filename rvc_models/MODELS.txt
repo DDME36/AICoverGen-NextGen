@@ -1,0 +1,29 @@
+# RVC Voice Models
+
+Place your RVC v2 voice models here.
+
+Each model should be in its own folder with:
+- model_name.pth (required)
+- model_name.index (optional, but recommended)
+
+Example structure:
+```
+rvc_models/
+├── Singer1/
+│   ├── Singer1.pth
+│   └── Singer1.index
+├── Singer2/
+│   ├── Singer2.pth
+│   └── Singer2.index
+└── hubert_base.pt (downloaded automatically)
+```
+
+## Where to find models:
+
+1. **AI Hub Discord**: https://discord.gg/aihub
+2. **HuggingFace**: Search for "RVC" models
+3. **Train your own**: Use RVC WebUI to train custom models
+
+## Required base models (auto-downloaded):
+- hubert_base.pt
+- rmvpe.pt

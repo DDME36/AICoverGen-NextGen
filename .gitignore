@@ -1,0 +1,55 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+*.egg
+
+# Virtual Environment
+env/
+venv/
+.venv/
+
+# Models (large files)
+*.pth
+*.pt
+*.onnx
+*.index
+*.pkl
+*.bin
+*.ckpt
+*.th
+*.npy
+
+# Audio files
+*.wav
+*.mp3
+*.flac
+*.ogg
+*.m4a
+
+# Output
+song_output/
+test_output/
+logs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Keep structure files
+!rvc_models/MODELS.txt
+!rvc_models/public_models.json
+!mdxnet_models/model_data.json

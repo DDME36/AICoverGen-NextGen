@@ -1,0 +1,12 @@
+{
+    "tags": {
+        "English": "Character speaks English",
+        "Japanese": "Character speaks Japanese",
+        "Other Language": "The character speaks Other Language",
+        "Anime": "Character from anime",
+        "Vtuber": "Character is a vtuber",
+        "Real person": "A person who exists in the real world",
+        "Game character": "A character from the game"
+    },
+    "voice_models": []
+}

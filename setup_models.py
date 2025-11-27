@@ -1,0 +1,92 @@
+"""
+AICoverGen NextGen - Model Downloader
+Downloads all required AI models for voice conversion
+"""
+
+import os
+import urllib.request
+from pathlib import Path
+
+BASE_DIR = Path(__file__).parent
+RVC_MODELS_DIR = BASE_DIR / "rvc_models"
+MDX_MODELS_DIR = BASE_DIR / "mdxnet_models"
+
+# Create directories
+RVC_MODELS_DIR.mkdir(exist_ok=True)
+MDX_MODELS_DIR.mkdir(exist_ok=True)
+
+# Model definitions
+MODELS = {
+    # ContentVec - Better feature extraction for RVC v2
+    "hubert_base.pt": {
+        "url": "https://huggingface.co/innnky/contentvec/resolve/main/checkpoint_best_legacy_500.pt",
+        "dir": RVC_MODELS_DIR,
+        "description": "ContentVec (Feature Extraction)"
+    },
+    # RMVPE - Best pitch detection
+    "rmvpe.pt": {
+        "url": "https://huggingface.co/lj1995/VoiceConversionWebUI/resolve/main/rmvpe.pt",
+        "dir": RVC_MODELS_DIR,
+        "description": "RMVPE (Pitch Detection)"
+    },
+    # MDX-Net Vocal separation (fallback only)
+    "UVR-MDX-NET-Voc_FT.onnx": {
+        "url": "https://github.com/TRvlvr/model_repo/releases/download/all_public_uvr_models/UVR-MDX-NET-Voc_FT.onnx",
+        "dir": MDX_MODELS_DIR,
+        "description": "MDX-Net Vocal (Fallback)"
+    },
+    # UVR DeEcho-DeReverb - Remove echo and reverb from vocals
+    "UVR-DeEcho-DeReverb.pth": {
+        "url": "https://huggingface.co/seanghay/uvr_models/resolve/main/UVR-DeEcho-DeReverb.pth",
+        "dir": MDX_MODELS_DIR,
+        "description": "UVR DeEcho-DeReverb (Vocal Cleanup)"
+    },
+}
+
+
+def download_file(url: str, dest: Path, desc: str = "") -> bool:
+    """Download a file with progress indicator"""
+    if dest.exists():
+        print(f"  ✓ {desc} (already exists)")
+        return True
+    
+    print(f"  ↓ Downloading {desc}...")
+    try:
+        urllib.request.urlretrieve(url, dest)
+        print(f"  ✓ {desc}")
+        return True
+    except Exception as e:
+        print(f"  ✗ Failed to download {desc}: {e}")
+        return False
+
+
+def main():
+    print("=" * 60)
+    print("🎵 AICoverGen NextGen - Model Downloader")
+    print("=" * 60)
+    print()
+    
+    success_count = 0
+    total_count = len(MODELS)
+    
+    for filename, info in MODELS.items():
+        dest = info["dir"] / filename
+        if download_file(info["url"], dest, info["description"]):
+            success_count += 1
+    
+    print()
+    print("=" * 60)
+    if success_count == total_count:
+        print(f"✅ All {total_count} models downloaded successfully!")
+    else:
+        print(f"⚠️  {success_count}/{total_count} models downloaded")
+    print("=" * 60)
+    
+    print()
+    print("📝 Note: BS-RoFormer (SDR 12.97) will be downloaded")
+    print("   automatically on first use.")
+    print()
+
+
+if __name__ == "__main__":
+    main()

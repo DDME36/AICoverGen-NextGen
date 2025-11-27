@@ -1,0 +1,48 @@
+# AICoverGen NextGen (Upgraded) - Requirements
+# Tested with Python 3.10
+
+# ===== PyTorch (CUDA 12.1) =====
+--extra-index-url https://download.pytorch.org/whl/cu121
+torch==2.5.1
+torchaudio==2.5.1
+torchvision==0.20.1
+
+# ===== Audio Processing =====
+librosa==0.10.2
+soundfile==0.12.1
+pydub==0.25.1
+pedalboard==0.9.9
+pyworld==0.3.4
+praat-parselmouth>=0.4.2
+resampy
+sox==1.4.1
+
+# ===== Numerical =====
+numpy<2
+scipy==1.13.1
+numba>=0.56.4
+
+# ===== RVC Dependencies =====
+fairseq==0.12.2
+faiss-cpu>=1.8.0
+torchcrepe==0.0.23
+onnxruntime-gpu
+
+# ===== SOTA Models =====
+# Mel-RoFormer (Best vocal separation SDR 12.6)
+audio-separator[gpu]
+
+# FCPE (Fast pitch detection)
+torchfcpe
+
+# ===== UI =====
+gradio>=3.50.2
+
+# ===== Utilities =====
+yt-dlp
+requests
+tqdm
+ffmpeg-python
+
+# ===== Optional (for noise reduction) =====
+# deepfilternet  # Uncomment if needed
