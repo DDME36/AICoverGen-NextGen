@@ -104,7 +104,7 @@ def generate_cover(song_input: str, voice_model: str, pitch_change: int = 0,
                    pitch_change_all: int = 0, reverb_room_size: float = None,
                    reverb_wet: float = None, reverb_dry: float = None,
                    reverb_damping: float = None, output_format: str = None,
-                   progress_callback=None) -> str:
+                   separate_backing: bool = False, progress_callback=None) -> str:
     """
     Main pipeline: Generate AI cover from song input
     Returns: path to final cover audio
@@ -135,7 +135,7 @@ def generate_cover(song_input: str, voice_model: str, pitch_change: int = 0,
     if not os.path.exists(song_dir) or not os.listdir(song_dir):
         os.makedirs(song_dir, exist_ok=True)
         orig_path, vocals_path, instrumental_path, dereverb_path, backing_vocals_path = preprocess_song(
-            song_input, song_id, input_type, progress_callback
+            song_input, song_id, input_type, progress_callback, separate_backing
         )
     else:
         # Use cached files
@@ -150,7 +150,7 @@ def generate_cover(song_input: str, voice_model: str, pitch_change: int = 0,
         if instrumental_path is None or dereverb_path is None:
             print("[~] Cache incomplete, re-processing...")
             orig_path, vocals_path, instrumental_path, dereverb_path, backing_vocals_path = preprocess_song(
-                song_input, song_id, input_type, progress_callback
+                song_input, song_id, input_type, progress_callback, separate_backing
             )
         else:
             print(f"[✓] Using cached files from {song_dir}")

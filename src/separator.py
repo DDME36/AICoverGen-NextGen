@@ -158,7 +158,7 @@ def separate_backing_vocals(instrumental_path: str, output_dir: str) -> tuple[st
         return instrumental_path, None
     
     try:
-        print("[~] Separating backing vocals (mel_band_roformer_karaoke SDR 10.19)...")
+        print("[~] Separating backing vocals (mel_band_roformer_karaoke)...")
         
         separator = Separator(
             output_dir=output_dir,
@@ -171,29 +171,21 @@ def separate_backing_vocals(instrumental_path: str, output_dir: str) -> tuple[st
         clean_instrumental = None
         backing_vocals = None
         
+        # Parse output files - karaoke model outputs:
+        # (Instrumental) = clean karaoke track (no backing vocals)
+        # (Vocals) = backing vocals only
         for f in output_files:
             f_lower = os.path.basename(f).lower()
-            if not os.path.isabs(f):
-                f = os.path.join(output_dir, os.path.basename(f))
+            full_path = f if os.path.isabs(f) else os.path.join(output_dir, os.path.basename(f))
             
-            # Karaoke model outputs: (Instrumental) = clean, (Vocals) = backing
-            if '(instrumental)' in f_lower or 'karaoke' in f_lower:
-                clean_instrumental = f
+            # Must check (instrumental) BEFORE checking karaoke since both files have karaoke in name
+            if '(instrumental)' in f_lower:
+                clean_instrumental = full_path
             elif '(vocals)' in f_lower:
-                backing_vocals = f
-        
-        # Fallback: scan directory for karaoke outputs
-        if clean_instrumental is None or backing_vocals is None:
-            for file in os.listdir(output_dir):
-                file_lower = file.lower()
-                if 'karaoke' in file_lower or ('instrumental' in file_lower and 'mel_band' in file_lower):
-                    if '(instrumental)' in file_lower:
-                        clean_instrumental = os.path.join(output_dir, file)
-                    elif '(vocals)' in file_lower:
-                        backing_vocals = os.path.join(output_dir, file)
+                backing_vocals = full_path
         
         if clean_instrumental and os.path.exists(clean_instrumental):
-            print(f"✓ Clean instrumental: {os.path.basename(clean_instrumental)}")
+            print(f"✓ Clean instrumental (karaoke): {os.path.basename(clean_instrumental)}")
         else:
             print("⚠️  Clean instrumental not found, using original")
             clean_instrumental = instrumental_path
