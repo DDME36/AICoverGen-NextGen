@@ -215,7 +215,6 @@ if __name__ == '__main__':
                         crepe_hop_length = gr.Slider(32, 320, value=128, step=1, visible=False, label='Crepe hop length', info='Lower values leads to longer conversions and higher risk of voice cracks, but better pitch accuracy.')
                         f0_method.change(show_hop_slider, inputs=f0_method, outputs=crepe_hop_length)
                 keep_files = gr.Checkbox(label='Keep intermediate files', info='Keep all audio files generated in the song_output/id directory, e.g. Isolated Vocals/Instrumentals. Leave unchecked to save space')
-                separate_backing = gr.Checkbox(label='Separate backing vocals (slower)', value=False, info='Use mel_band_roformer_karaoke to remove backing vocals from instrumental. Better quality but adds ~1-2 min processing time.')
 
             with gr.Accordion('Audio mixing options', open=False):
                 gr.Markdown('### Volume Change (decibels)')
@@ -245,12 +244,12 @@ if __name__ == '__main__':
                                inputs=[song_input, rvc_model, pitch, keep_files, is_webui, main_gain, backup_gain,
                                        inst_gain, index_rate, filter_radius, rms_mix_rate, f0_method, crepe_hop_length,
                                        protect, pitch_all, reverb_rm_size, reverb_wet, reverb_dry, reverb_damping,
-                                       output_format, separate_backing],
+                                       output_format],
                                outputs=[ai_cover])
-            clear_btn.click(lambda: [0, 0, 0, 0, 0.5, 3, 0.25, 0.33, 'rmvpe', 128, 0, 0.15, 0.2, 0.8, 0.7, 'mp3', False, None],
+            clear_btn.click(lambda: [0, 0, 0, 0, 0.5, 3, 0.25, 0.33, 'rmvpe', 128, 0, 0.15, 0.2, 0.8, 0.7, 'mp3', None],
                             outputs=[pitch, main_gain, backup_gain, inst_gain, index_rate, filter_radius, rms_mix_rate,
                                      protect, f0_method, crepe_hop_length, pitch_all, reverb_rm_size, reverb_wet,
-                                     reverb_dry, reverb_damping, output_format, separate_backing, ai_cover])
+                                     reverb_dry, reverb_damping, output_format, ai_cover])
 
 
         # Download tab

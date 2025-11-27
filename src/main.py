@@ -20,13 +20,14 @@ def song_cover_pipeline(song_input, voice_model, pitch_change, keep_files,
                         f0_method='rmvpe', crepe_hop_length=128, protect=0.33, 
                         pitch_change_all=0, reverb_rm_size=0.15, reverb_wet=0.2, 
                         reverb_dry=0.8, reverb_damping=0.7, output_format='mp3',
-                        separate_backing=False, progress=gr.Progress()):
+                        progress=gr.Progress()):
     """
     Main pipeline function - backward compatible with webui.py
     
-    Args:
-        separate_backing: If True, use mel_band_roformer_karaoke to separate backing vocals
-                         from instrumental for cleaner mix. Slower but better quality.
+    Caching behavior:
+    - Vocal separation (BS-RoFormer) is cached per song
+    - Voice conversion is cached per: voice_model + pitch + f0_method + index_rate + filter_radius + rms_mix_rate + protect
+    - Changing any RVC parameter will re-convert vocals but reuse separated audio
     """
     try:
         # Create progress callback for webui
@@ -56,7 +57,6 @@ def song_cover_pipeline(song_input, voice_model, pitch_change, keep_files,
             reverb_dry=reverb_dry,
             reverb_damping=reverb_damping,
             output_format=output_format,
-            separate_backing=separate_backing,
             progress_callback=progress_callback
         )
         
