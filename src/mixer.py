@@ -128,60 +128,63 @@ def auto_mix(main_vocals_path: str, instrumental_path: str, output_path: str,
              output_format: str = None, backing_vocals_path: str = None,
              backing_gain: int = -6) -> str:
     """
-    Auto-mix vocals and instrumental - OPTIMIZED with numpy
-    Much faster than pydub-based mixing
+    Auto-mix vocals and instrumental using pydub (stable, correct timing)
     """
+    _load_pydub()
     output_format = output_format or config.DEFAULT_OUTPUT_FORMAT
     
-    print("[~] Auto-mixing (optimized)...")
+    print("[~] Auto-mixing...")
     
-    # Load audio in parallel
-    with ThreadPoolExecutor(max_workers=3) as executor:
-        futures = {
-            'vocal': executor.submit(_load_audio_numpy, main_vocals_path),
-            'inst': executor.submit(_load_audio_numpy, instrumental_path),
-        }
-        if backing_vocals_path and os.path.exists(backing_vocals_path):
-            futures['backing'] = executor.submit(_load_audio_numpy, backing_vocals_path)
-        
-        main_vocal, sr = futures['vocal'].result()
-        instrumental, _ = futures['inst'].result()
-        backing_vocal = futures['backing'].result()[0] if 'backing' in futures else None
+    # Load audio
+    main_vocal = AudioSegment.from_wav(main_vocals_path)
+    instrumental = AudioSegment.from_wav(instrumental_path)
+    
+    # Load backing vocals if available
+    backing_vocal = None
+    if backing_vocals_path and os.path.exists(backing_vocals_path):
+        print("    Including backing vocals")
+        backing_vocal = AudioSegment.from_wav(backing_vocals_path)
+        backing_vocal = normalize(backing_vocal)
+        backing_vocal = backing_vocal + backing_gain
     
     # Normalize
-    main_vocal = _normalize_numpy(main_vocal, -3.0)
-    instrumental = _normalize_numpy(instrumental, -5.0)
+    main_vocal = normalize(main_vocal)
+    instrumental = normalize(instrumental)
     
-    # Prepare tracks and gains
-    tracks = [instrumental, main_vocal]
-    gains = [inst_gain, main_gain]
+    # Gain staging
+    main_vocal = main_vocal - 3 + main_gain
+    instrumental = instrumental - 5 + inst_gain
     
-    if backing_vocal is not None:
-        print("    Including backing vocals")
-        backing_vocal = _normalize_numpy(backing_vocal, -6.0)
-        tracks.append(backing_vocal)
-        gains.append(backing_gain)
+    # Match lengths - use instrumental length as reference
+    target_length = len(instrumental)
+    if len(main_vocal) > target_length:
+        main_vocal = main_vocal[:target_length]
+    elif len(main_vocal) < target_length:
+        # Pad with silence if vocal is shorter
+        silence = AudioSegment.silent(duration=target_length - len(main_vocal))
+        main_vocal = main_vocal + silence
     
-    # Mix
-    mixed = _mix_numpy(tracks, gains)
+    # Mix - start with instrumental
+    mixed = instrumental
     
-    # Normalize and limit
-    mixed = _normalize_numpy(mixed, -1.0)
-    mixed = _soft_limit(mixed)
+    # Add backing vocals if available
+    if backing_vocal:
+        if len(backing_vocal) > target_length:
+            backing_vocal = backing_vocal[:target_length]
+        mixed = mixed.overlay(backing_vocal)
+    
+    # Overlay main vocals
+    mixed = mixed.overlay(main_vocal)
+    
+    # Final normalize and limit
+    mixed = normalize(mixed)
+    if mixed.dBFS > -1.0:
+        mixed = mixed - (mixed.dBFS + 1.0)
     
     # Export
-    if output_format == 'mp3':
-        # For MP3, use pydub (required for encoding)
-        _load_pydub()
-        temp_wav = output_path.replace('.mp3', '_temp.wav')
-        sf.write(temp_wav, mixed, sr)
-        audio = AudioSegment.from_wav(temp_wav)
-        audio.export(output_path, format='mp3', bitrate='320k')
-        os.remove(temp_wav)
-    else:
-        sf.write(output_path, mixed, sr)
-    
+    mixed.export(output_path, format=output_format, bitrate="320k")
     print(f"✓ Auto-mix complete: {os.path.basename(output_path)}")
+    
     return output_path
 
 
