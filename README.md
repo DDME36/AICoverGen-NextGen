@@ -89,7 +89,15 @@ Go to **Download model** tab and paste model link from:
 - **Index Rate 0.5-0.7** = Smoothest voice
 - **Protect 0.33** = Prevent voice cracking
 - **RMS Mix 0.25** = Natural loudness
-- **RMVPE** = Best pitch detection
+
+### Pitch Detection Methods
+
+| Method | Quality | Speed | Best For |
+|--------|---------|-------|----------|
+| **RMVPE** | 95% | Fast | General use (default) |
+| **FCPE** | 93% | Very Fast | Smoother, less robotic |
+| **Hybrid** | 97% | Medium | Best quality |
+| **Mangio-Crepe** | 98% | Slow | Ballads, slow songs |
 
 ---
 

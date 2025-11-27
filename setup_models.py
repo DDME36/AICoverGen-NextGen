@@ -29,6 +29,12 @@ MODELS = {
         "dir": RVC_MODELS_DIR,
         "description": "RMVPE (Pitch Detection)"
     },
+    # FCPE - Fast Context-aware Pitch Estimation (smoother, less robotic)
+    "fcpe.pt": {
+        "url": "https://huggingface.co/lj1995/VoiceConversionWebUI/resolve/main/fcpe.pt",
+        "dir": RVC_MODELS_DIR,
+        "description": "FCPE (Smoother Pitch Detection)"
+    },
     # MDX-Net Vocal separation (fallback only)
     "UVR-MDX-NET-Voc_FT.onnx": {
         "url": "https://github.com/TRvlvr/model_repo/releases/download/all_public_uvr_models/UVR-MDX-NET-Voc_FT.onnx",

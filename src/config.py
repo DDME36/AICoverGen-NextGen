@@ -32,6 +32,11 @@ DEFAULT_INDEX_RATE = 0.5
 DEFAULT_FILTER_RADIUS = 3
 DEFAULT_RMS_MIX_RATE = 0.25
 DEFAULT_PROTECT = 0.33
+# Pitch detection methods: rmvpe, fcpe, hybrid, mangio-crepe
+# rmvpe: clear vocals (default)
+# fcpe: smoother, less robotic
+# hybrid: best quality (rmvpe + fcpe combined)
+# mangio-crepe: smoothest but slowest
 DEFAULT_F0_METHOD = "rmvpe"
 DEFAULT_CREPE_HOP_LENGTH = 128
 

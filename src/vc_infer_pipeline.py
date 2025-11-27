@@ -107,6 +107,22 @@ class VC(object):
                 self.model_rmvpe = RMVPE(os.path.join(BASE_DIR, 'rvc_models', 'rmvpe.pt'),
                                         is_half=self.is_half, device=self.device)
             f0 = self.model_rmvpe.infer_from_audio(x, thred=0.03)
+        elif f0_method == "fcpe":
+            # FCPE - Fast Context-aware Pitch Estimation (smoother, less robotic)
+            try:
+                if hasattr(self, "model_fcpe") == False:
+                    from pitch_extraction import FCPE
+                    self.model_fcpe = FCPE(os.path.join(BASE_DIR, 'rvc_models', 'fcpe.pt'),
+                                          device=self.device)
+                f0 = self.model_fcpe.compute_f0(x, p_len=p_len)
+                print("  Using FCPE pitch detection (smoother)")
+            except Exception as e:
+                print(f"  FCPE failed, falling back to RMVPE: {e}")
+                if hasattr(self, "model_rmvpe") == False:
+                    from rmvpe import RMVPE
+                    self.model_rmvpe = RMVPE(os.path.join(BASE_DIR, 'rvc_models', 'rmvpe.pt'),
+                                            is_half=self.is_half, device=self.device)
+                f0 = self.model_rmvpe.infer_from_audio(x, thred=0.03)
         elif f0_method == "hybrid":
             # RMVPE + FCPE hybrid for best accuracy (98%+)
             try:
@@ -122,25 +138,23 @@ class VC(object):
                     from pitch_extraction import FCPE
                     self.model_fcpe = FCPE(os.path.join(BASE_DIR, 'rvc_models', 'fcpe.pt'),
                                           device=self.device)
-                f0_fcpe = self.model_fcpe.compute_f0(x, p_len=p_len)
+                f0_fcpe = self.model_fcpe.compute_f0(x, p_len=len(f0_rmvpe))
+                
+                # Align lengths
+                min_len = min(len(f0_rmvpe), len(f0_fcpe))
+                f0_rmvpe = f0_rmvpe[:min_len]
+                f0_fcpe = f0_fcpe[:min_len]
                 
                 # Hybrid: median of both (more robust)
                 f0 = np.nanmedian([f0_rmvpe, f0_fcpe], axis=0)
-                print("  Using RMVPE+FCPE hybrid pitch detection")
+                print("  Using RMVPE+FCPE hybrid pitch detection (best quality)")
             except Exception as e:
                 print(f"  Hybrid failed, using RMVPE only: {e}")
+                if hasattr(self, "model_rmvpe") == False:
+                    from rmvpe import RMVPE
+                    self.model_rmvpe = RMVPE(os.path.join(BASE_DIR, 'rvc_models', 'rmvpe.pt'),
+                                            is_half=self.is_half, device=self.device)
                 f0 = self.model_rmvpe.infer_from_audio(x, thred=0.03)
-        elif f0_method == "fcpe":
-            # Try FCPE first, fallback to mangio-crepe if not available
-            try:
-                if hasattr(self, "model_fcpe") == False:
-                    from pitch_extraction import FCPE
-                    self.model_fcpe = FCPE(os.path.join(BASE_DIR, 'rvc_models', 'fcpe.pt'),
-                                          device=self.device)
-                f0 = self.model_fcpe.compute_f0(x, p_len=p_len)
-            except Exception as e:
-                print(f"Warning: FCPE not available, falling back to mangio-crepe: {e}")
-                f0 = self.get_f0_crepe_computation(x, f0_min, f0_max, p_len, crepe_hop_length)
         else:
             # Fallback to mangio-crepe for unknown methods
             print(f"Warning: Unknown f0_method '{f0_method}', falling back to mangio-crepe")
