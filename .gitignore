@@ -53,3 +53,6 @@ Thumbs.db
 !rvc_models/MODELS.txt
 !rvc_models/public_models.json
 !mdxnet_models/model_data.json
+
+# Reference folders (not part of project)
+ultimate-rvc-main/
