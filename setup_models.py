@@ -31,7 +31,7 @@ MODELS = {
     },
     # FCPE - Fast Context-aware Pitch Estimation (smoother, less robotic)
     "fcpe.pt": {
-        "url": "https://huggingface.co/lj1995/VoiceConversionWebUI/resolve/main/fcpe.pt",
+        "url": "https://huggingface.co/NeoPy/rvc-base/resolve/main/fcpe.pt",
         "dir": RVC_MODELS_DIR,
         "description": "FCPE (Smoother Pitch Detection)"
     },
