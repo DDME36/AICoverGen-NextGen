@@ -265,15 +265,21 @@ def find_cached_audio(song_dir: str) -> tuple[str | None, str | None, str | None
     for file in os.listdir(song_dir):
         file_lower = file.lower()
         
+        # Skip karaoke outputs (they are secondary files)
+        if 'karaoke' in file_lower:
+            continue
+        
         # Priority 1: DeReverb vocals
         if 'no reverb' in file_lower and file.endswith('.wav'):
             vocals_dereverb_path = os.path.join(song_dir, file)
-        # Priority 2: Raw vocals
+        # Priority 2: Raw vocals from BS-RoFormer (not karaoke backing vocals)
         elif '(vocals)' in file_lower and file.endswith('.wav') and 'reverb' not in file_lower:
             if vocals_path is None:
                 vocals_path = os.path.join(song_dir, file)
+        # Instrumental from BS-RoFormer (not karaoke)
         elif '(instrumental)' in file_lower and file.endswith('.wav'):
-            instrumentals_path = os.path.join(song_dir, file)
+            if instrumentals_path is None:
+                instrumentals_path = os.path.join(song_dir, file)
         # MDX-Net fallback
         elif file.endswith('_Vocals.wav'):
             if vocals_path is None:
@@ -282,18 +288,33 @@ def find_cached_audio(song_dir: str) -> tuple[str | None, str | None, str | None
             if instrumentals_path is None:
                 instrumentals_path = os.path.join(song_dir, file)
 
-    # Find original song
+    # Find original song - check multiple patterns
+    for file in os.listdir(song_dir):
+        file_lower = file.lower()
+        # Skip processed files
+        if '(' in file or 'karaoke' in file_lower:
+            continue
+        
+        if file.endswith('.mp3'):
+            orig_song_path = os.path.join(song_dir, file)
+            break
+        elif file.endswith('_stereo.wav'):
+            orig_song_path = os.path.join(song_dir, file)
+            break
+    
+    # Fallback: use any wav that looks like original
     if orig_song_path is None:
         for file in os.listdir(song_dir):
-            if file.endswith('.mp3'):
-                orig_song_path = os.path.join(song_dir, file)
-                break
-            elif file.endswith('_stereo.wav'):
-                orig_song_path = os.path.join(song_dir, file)
-                break
-            elif file.endswith('.wav') and '(' not in file and '_' not in file:
-                orig_song_path = os.path.join(song_dir, file)
-                break
+            if file.endswith('.wav') and '(' not in file and 'karaoke' not in file.lower():
+                # Check if it's not a processed file
+                if not any(x in file.lower() for x in ['reverb', 'vocal', 'instrumental', '_p']):
+                    orig_song_path = os.path.join(song_dir, file)
+                    break
+    
+    # Last resort: use instrumental as reference for base name
+    if orig_song_path is None and instrumentals_path:
+        # Extract base name from instrumental path
+        orig_song_path = instrumentals_path  # Will use instrumental for base name
 
     # Use best available vocals
     final_vocals = vocals_dereverb_path or vocals_path

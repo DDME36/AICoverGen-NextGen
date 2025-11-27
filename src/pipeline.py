@@ -163,8 +163,22 @@ def generate_cover(song_input: str, voice_model: str, pitch_change: int = 0,
     # Calculate final pitch
     final_pitch = pitch_change * 12 + pitch_change_all
     
-    # Generate output paths
-    base_name = os.path.splitext(os.path.basename(orig_path))[0]
+    # Generate output paths - extract base name from available files
+    if orig_path:
+        base_name = os.path.splitext(os.path.basename(orig_path))[0]
+    elif instrumental_path:
+        # Extract base name from instrumental (remove suffix like "(Instrumental)_model...")
+        inst_name = os.path.basename(instrumental_path)
+        # Find the part before "(Instrumental)" or "(Vocals)"
+        for marker in ['_(Instrumental)', '_(Vocals)', '(Instrumental)', '(Vocals)']:
+            if marker in inst_name:
+                base_name = inst_name.split(marker)[0]
+                break
+        else:
+            base_name = os.path.splitext(inst_name)[0]
+    else:
+        base_name = "cover"
+    
     output_format = output_format or config.DEFAULT_OUTPUT_FORMAT
     
     ai_vocals_path = os.path.join(
