@@ -70,18 +70,21 @@ def preprocess_song(song_input: str, song_id: str, input_type: str,
     
     dereverb_vocals_path = remove_reverb(vocals_path, song_output_dir)
     
-    # Separate backing vocals from instrumental for cleaner mix
+    # Separate backing vocals from instrumental (optional)
+    # Note: We keep the original instrumental for mixing to preserve timing
+    # The backing_vocals can be mixed back in at lower volume if needed
     backing_vocals_path = None
     if separate_backing and instrumental_path:
         if progress_callback:
-            progress_callback('[~] Separating backing vocals (mel_band_roformer_karaoke)...', 0.3)
+            progress_callback('[~] Separating backing vocals (mel_band_roformer)...', 0.3)
         
+        # Get clean instrumental and backing vocals
+        # But we'll use original instrumental to preserve timing
         clean_instrumental, backing_vocals_path = separate_backing_vocals(
             instrumental_path, song_output_dir
         )
-        # Use clean instrumental (without backing vocals)
-        if clean_instrumental and clean_instrumental != instrumental_path:
-            instrumental_path = clean_instrumental
+        # DON'T replace instrumental - keep original for correct timing
+        # instrumental_path stays as BS-RoFormer output
     
     return orig_song_path, vocals_path, instrumental_path, dereverb_vocals_path, backing_vocals_path
 
