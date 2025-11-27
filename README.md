@@ -19,7 +19,6 @@
 | Feature | Description |
 |---------|-------------|
 | 🎤 **BS-RoFormer** | SOTA vocal separation (SDR 12.97) - Best quality vocal extraction |
-| 🎙️ **Backing Vocal Separation** | Separate main vocals from backing vocals (KARA_2) |
 | 🔇 **UVR-DeEcho-DeReverb** | Remove echo and reverb from vocals for cleaner output |
 | 🧠 **ContentVec** | Better feature extraction for RVC v2 |
 | 🎵 **RVC v2** | High quality voice conversion |
@@ -99,7 +98,6 @@ Go to **Download model** tab and paste model link from:
 | Model | Purpose | Quality |
 |-------|---------|---------|
 | BS-RoFormer | Vocal Separation | SDR 12.97 |
-| UVR_MDXNET_KARA_2 | Main/Backing Separation | High quality |
 | UVR-DeEcho-DeReverb | Remove Echo/Reverb | High quality |
 | ContentVec | Feature Extraction | High quality |
 | RMVPE | Pitch Detection | 98%+ accuracy |
@@ -114,15 +112,13 @@ YouTube/Audio File
        ↓
 1. Vocal Separation (BS-RoFormer)
        ↓
-2. Main/Backing Separation (KARA_2)
+2. DeReverb/DeEcho (UVR-DeEcho-DeReverb)
        ↓
-3. DeReverb/DeEcho (UVR-DeEcho-DeReverb)
+3. Voice Conversion (RVC v2)
        ↓
-4. Voice Conversion (RVC v2) - Main vocals only
+4. Auto-Mixing (Compression + EQ + Gain Staging)
        ↓
-5. Auto-Mixing (Compression + EQ + Gain Staging)
-       ↓
-   Final AI Cover (with original backing vocals)
+   Final AI Cover
 ```
 
 ---

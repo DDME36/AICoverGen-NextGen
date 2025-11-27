@@ -41,12 +41,6 @@ MODELS = {
         "dir": MDX_MODELS_DIR,
         "description": "UVR DeEcho-DeReverb (Vocal Cleanup)"
     },
-    # Karaoke model - Separate main vocals from backing vocals
-    "UVR_MDXNET_KARA_2.onnx": {
-        "url": "https://github.com/TRvlvr/model_repo/releases/download/all_public_uvr_models/UVR_MDXNET_KARA_2.onnx",
-        "dir": MDX_MODELS_DIR,
-        "description": "MDX-Net Karaoke (Main/Backing Separation)"
-    },
 }
 
 

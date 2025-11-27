@@ -119,8 +119,6 @@ def get_audio_paths(song_dir):
     instrumentals_path = None
     main_vocals_path = None
     main_vocals_dereverb_path = None
-    backup_vocals_path = None
-    kara_main_vocals_path = None
 
     for file in os.listdir(song_dir):
         file_lower = file.lower()
@@ -128,17 +126,11 @@ def get_audio_paths(song_dir):
         # Priority 1: DeReverb vocals (No Reverb) - cleanest vocals for RVC
         if 'no reverb' in file_lower and file.endswith('.wav'):
             main_vocals_dereverb_path = os.path.join(song_dir, file)
-        # Priority 2: KARA separated - outputs are INVERTED!
-        # KARA (Instrumental) = main vocals, KARA (Vocals) = backing vocals
-        elif 'kara' in file_lower and '(instrumental)' in file_lower and file.endswith('.wav'):
-            kara_main_vocals_path = os.path.join(song_dir, file)
-        elif 'kara' in file_lower and '(vocals)' in file_lower and file.endswith('.wav'):
-            backup_vocals_path = os.path.join(song_dir, file)
-        # Priority 4: BS-RoFormer output (raw vocals before KARA separation)
-        elif '(vocals)' in file_lower and file.endswith('.wav') and 'reverb' not in file_lower and 'kara' not in file_lower:
+        # Priority 2: BS-RoFormer output (raw vocals)
+        elif '(vocals)' in file_lower and file.endswith('.wav') and 'reverb' not in file_lower:
             if main_vocals_path is None:
                 main_vocals_path = os.path.join(song_dir, file)
-        elif '(instrumental)' in file_lower and file.endswith('.wav') and 'kara' not in file_lower:
+        elif '(instrumental)' in file_lower and file.endswith('.wav'):
             instrumentals_path = os.path.join(song_dir, file)
         # MDX-Net output format (fallback)
         elif file.endswith('_Vocals.wav'):
@@ -148,10 +140,6 @@ def get_audio_paths(song_dir):
             if instrumentals_path is None:
                 instrumentals_path = os.path.join(song_dir, file)
                 orig_song_path = instrumentals_path.replace('_Instrumental', '')
-        elif file.endswith('_Vocals_Backup.wav'):
-            backup_vocals_path = os.path.join(song_dir, file)
-        elif file.endswith('_Vocals_Main.wav'):
-            main_vocals_path = os.path.join(song_dir, file)
 
     # Find original song (mp3, wav, or stereo wav)
     if orig_song_path is None:
@@ -166,10 +154,10 @@ def get_audio_paths(song_dir):
                 orig_song_path = os.path.join(song_dir, file)
                 break
 
-    # Use best available vocals: DeReverb > KARA main > raw vocals
-    final_vocals_path = main_vocals_dereverb_path or kara_main_vocals_path or main_vocals_path
+    # Use DeReverb vocals if available, otherwise raw vocals
+    final_vocals_path = main_vocals_dereverb_path or main_vocals_path
 
-    return orig_song_path, instrumentals_path, final_vocals_path, backup_vocals_path
+    return orig_song_path, instrumentals_path, final_vocals_path, None
 
 
 def convert_to_stereo(audio_path):
@@ -321,67 +309,6 @@ def remove_reverb_echo(vocals_path, output_dir):
         return vocals_path
 
 
-def separate_backing_vocals(vocals_path, output_dir):
-    """Separate main vocals from backing vocals using UVR_MDXNET_KARA_2"""
-    if not BS_ROFORMER_AVAILABLE:
-        print("⚠️  audio-separator not available, skipping backing vocal separation")
-        return vocals_path, None
-    
-    try:
-        print("[~] Separating main vocals from backing vocals (KARA_2)...")
-        
-        separator = Separator(
-            output_dir=output_dir,
-            output_format="wav"
-        )
-        separator.load_model(model_filename="UVR_MDXNET_KARA_2.onnx")
-        
-        output_files = separator.separate(vocals_path)
-        
-        main_vocals_path = None
-        backing_vocals_path = None
-        
-        # First pass: check returned paths
-        for f in output_files:
-            # Make sure path is absolute
-            if not os.path.isabs(f):
-                f = os.path.join(output_dir, os.path.basename(f))
-            
-            f_lower = os.path.basename(f).lower()
-            
-            # KARA model outputs are INVERTED:
-            # (Vocals) = backing/harmony vocals
-            # (Instrumental) = main/lead vocals
-            if '(vocals)' in f_lower and 'kara' in f_lower:
-                backing_vocals_path = f
-            elif '(instrumental)' in f_lower and 'kara' in f_lower:
-                main_vocals_path = f
-        
-        # Fallback: scan output directory for KARA files
-        if main_vocals_path is None or not os.path.exists(main_vocals_path):
-            for file in os.listdir(output_dir):
-                file_lower = file.lower()
-                if 'kara' in file_lower and file.endswith('.wav'):
-                    full_path = os.path.join(output_dir, file)
-                    if '(instrumental)' in file_lower:
-                        main_vocals_path = full_path
-                    elif '(vocals)' in file_lower:
-                        backing_vocals_path = full_path
-        
-        if main_vocals_path and os.path.exists(main_vocals_path):
-            print(f"✓ Main vocals: {os.path.basename(main_vocals_path)}")
-            if backing_vocals_path and os.path.exists(backing_vocals_path):
-                print(f"✓ Backing vocals: {os.path.basename(backing_vocals_path)}")
-            return main_vocals_path, backing_vocals_path
-        else:
-            print("⚠️  Backing separation output not found, using original")
-            return vocals_path, None
-            
-    except Exception as e:
-        print(f"⚠️  Backing vocal separation failed: {e}")
-        return vocals_path, None
-
-
 def preprocess_song(song_input, mdx_model_params, song_id, is_webui, input_type, progress=None):
     keep_orig = False
     if input_type == 'yt':
@@ -415,12 +342,12 @@ def preprocess_song(song_input, mdx_model_params, song_id, is_webui, input_type,
             os.path.join(mdxnet_models_dir, 'UVR-MDX-NET-Voc_FT.onnx'), 
             orig_song_path, denoise=True, keep_orig=keep_orig)
 
-    # Separate main vocals from backing vocals
-    display_progress('[~] Separating main/backing vocals...', 0.2, is_webui, progress)
-    main_vocals_path, backup_vocals_path = separate_backing_vocals(vocals_path, song_output_dir)
+    # No backing vocal separation - use vocals directly
+    main_vocals_path = vocals_path
+    backup_vocals_path = None
 
-    # Apply DeReverb to clean up main vocals
-    display_progress('[~] Removing reverb/echo from vocals...', 0.3, is_webui, progress)
+    # Apply DeReverb to clean up vocals
+    display_progress('[~] Removing reverb/echo from vocals...', 0.2, is_webui, progress)
     main_vocals_dereverb_path = remove_reverb_echo(main_vocals_path, song_output_dir)
 
     return orig_song_path, vocals_path, instrumentals_path, main_vocals_path, backup_vocals_path, main_vocals_dereverb_path
