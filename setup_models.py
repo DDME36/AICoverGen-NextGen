@@ -42,11 +42,12 @@ MODELS = {
         "dir": MDX_MODELS_DIR,
         "description": "UVR DeEcho-DeReverb (Vocal Cleanup)"
     },
-    # Mel-Band RoFormer Karaoke - Separate backing vocals from instrumental
-    "mel_band_roformer_karaoke_becruily.ckpt": {
-        "url": "https://huggingface.co/becruily/mel-band-roformer-karaoke/resolve/main/mel_band_roformer_karaoke_becruily.ckpt",
+    # Mel-Band RoFormer Instrumental - Separate backing vocals from instrumental
+    # แยก instrumental (ไม่มี vocals) สำหรับ backing track
+    "mel_band_roformer_instrumental_becruily.ckpt": {
+        "url": "https://huggingface.co/becruily/mel-band-roformer-instrumental/resolve/main/mel_band_roformer_instrumental_becruily.ckpt",
         "dir": MDX_MODELS_DIR,
-        "description": "Mel-Band RoFormer Karaoke (Backing Vocal Separation)"
+        "description": "Mel-Band RoFormer Instrumental (Backing Vocal Removal)"
     },
 }
 
@@ -67,27 +68,53 @@ def download_file(url: str, dest: Path, desc: str = "") -> bool:
         return False
 
 
+def get_separator_model_dir():
+    """Get the audio-separator model directory"""
+    import tempfile
+    # audio-separator uses /tmp/audio-separator-models/ by default
+    return Path(tempfile.gettempdir()) / "audio-separator-models"
+
+
 def pre_download_separator_models():
     """
     Pre-download audio-separator models to avoid slow first-run
-    This downloads models to audio-separator's cache directory
+    Downloads custom models directly to audio-separator's cache directory
     """
     print()
     print("[~] Pre-downloading audio-separator models...")
     print("    (This may take a few minutes on first run)")
     print()
     
+    # Get audio-separator model directory
+    separator_model_dir = get_separator_model_dir()
+    separator_model_dir.mkdir(exist_ok=True)
+    print(f"    Model directory: {separator_model_dir}")
+    print()
+    
+    # Custom models to download directly (not in audio-separator's repo)
+    custom_models = {
+        "mel_band_roformer_instrumental_becruily.ckpt": {
+            "url": "https://huggingface.co/becruily/mel-band-roformer-instrumental/resolve/main/mel_band_roformer_instrumental_becruily.ckpt",
+            "description": "Mel-Band RoFormer Instrumental (Backing Vocal Removal)"
+        }
+    }
+    
+    # Download custom models to audio-separator directory
+    for filename, info in custom_models.items():
+        dest = separator_model_dir / filename
+        download_file(info["url"], dest, info["description"])
+    
+    # Pre-load standard models via audio-separator
     try:
         from audio_separator.separator import Separator
         
-        # Models to pre-download
+        # Standard models that audio-separator can download
         separator_models = [
             ("model_bs_roformer_ep_317_sdr_12.9755.ckpt", "BS-RoFormer (Vocal Separation)"),
             ("UVR-DeEcho-DeReverb.pth", "DeEcho-DeReverb (Vocal Cleanup)"),
-            ("mel_band_roformer_karaoke_becruily.ckpt", "Mel-Band RoFormer Karaoke (Backing Separation)"),
         ]
         
-        # Create separator instance (this sets up the model directory)
+        # Create separator instance
         separator = Separator(output_format="wav")
         
         for model_name, description in separator_models:
@@ -102,7 +129,7 @@ def pre_download_separator_models():
         print("✅ Audio separator models ready!")
         
     except ImportError:
-        print("⚠️  audio-separator not installed, skipping pre-download")
+        print("⚠️  audio-separator not installed, skipping standard model pre-download")
         print("   Install with: pip install audio-separator[gpu]")
     except Exception as e:
         print(f"⚠️  Error pre-downloading separator models: {e}")

@@ -62,17 +62,22 @@ def _get_separator(output_dir: str, model_name: str) -> 'Separator':
     
     # Create new separator and load model
     print(f"    Loading model: {model_name}...")
-    separator = Separator(
-        output_dir=output_dir,
-        output_format="wav"
-    )
-    separator.load_model(model_filename=model_name)
-    
-    # Cache it
-    _separator_cache['instance'] = separator
-    _separator_cache['current_model'] = model_name
-    
-    return separator
+    try:
+        separator = Separator(
+            output_dir=output_dir,
+            output_format="wav"
+        )
+        separator.load_model(model_filename=model_name)
+        
+        # Cache it
+        _separator_cache['instance'] = separator
+        _separator_cache['current_model'] = model_name
+        
+        return separator
+    except Exception as e:
+        print(f"⚠️  Failed to load model {model_name}: {e}")
+        _clear_gpu_memory()
+        return None
 
 
 def clear_separator_cache():

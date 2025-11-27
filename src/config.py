@@ -26,8 +26,9 @@ RMVPE_MODEL = "rmvpe.pt"
 MDX_VOCAL_MODEL = "UVR-MDX-NET-Voc_FT.onnx"
 DEREVERB_MODEL = "UVR-DeEcho-DeReverb.pth"
 BS_ROFORMER_MODEL = "model_bs_roformer_ep_317_sdr_12.9755.ckpt"
-# Karaoke model - separates backing vocals from instrumental for cleaner mix
-MEL_BAND_ROFORMER_KARAOKE = "mel_band_roformer_karaoke_becruily.ckpt"
+# Instrumental separation model - removes backing vocals from instrumental track
+# mel_band_roformer_instrumental_becruily.ckpt - แยก instrumental (ไม่มี vocals) สำหรับ backing track
+MEL_BAND_ROFORMER_KARAOKE = "mel_band_roformer_instrumental_becruily.ckpt"
 
 # Default RVC parameters
 DEFAULT_INDEX_RATE = 0.5
