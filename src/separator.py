@@ -31,6 +31,61 @@ except ImportError:
     print("⚠️  audio-separator not available. Install with: pip install audio-separator[gpu]")
 
 
+# ============ Model Caching ============
+# Cache separator instances to avoid reloading models
+_separator_cache = {
+    'instance': None,
+    'current_model': None,
+}
+
+
+def _get_separator(output_dir: str, model_name: str) -> 'Separator':
+    """
+    Get or create a cached Separator instance
+    Reuses the same instance if model hasn't changed
+    """
+    global _separator_cache
+    
+    if not SEPARATOR_AVAILABLE:
+        return None
+    
+    # If same model is already loaded, just update output_dir
+    if (_separator_cache['instance'] is not None and 
+        _separator_cache['current_model'] == model_name):
+        _separator_cache['instance'].output_dir = output_dir
+        return _separator_cache['instance']
+    
+    # Need to load new model - clear old one first
+    if _separator_cache['instance'] is not None:
+        del _separator_cache['instance']
+        _clear_gpu_memory()
+    
+    # Create new separator and load model
+    print(f"    Loading model: {model_name}...")
+    separator = Separator(
+        output_dir=output_dir,
+        output_format="wav"
+    )
+    separator.load_model(model_filename=model_name)
+    
+    # Cache it
+    _separator_cache['instance'] = separator
+    _separator_cache['current_model'] = model_name
+    
+    return separator
+
+
+def clear_separator_cache():
+    """Clear the separator cache to free GPU memory"""
+    global _separator_cache
+    if _separator_cache['instance'] is not None:
+        del _separator_cache['instance']
+        _separator_cache['instance'] = None
+        _separator_cache['current_model'] = None
+        _clear_gpu_memory()
+        print("✓ Separator cache cleared")
+
+
 def separate_vocals_bs_roformer(input_path: str, output_dir: str) -> tuple[str | None, str | None]:
     """
     Separate vocals using BS-RoFormer (SDR 12.97 - BEST quality)
@@ -41,11 +96,9 @@ def separate_vocals_bs_roformer(input_path: str, output_dir: str) -> tuple[str |
     
     print("[~] Separating vocals (BS-RoFormer SDR 12.97)...")
     
-    separator = Separator(
-        output_dir=output_dir,
-        output_format="wav"
-    )
-    separator.load_model(model_filename=config.BS_ROFORMER_MODEL)
+    separator = _get_separator(output_dir, config.BS_ROFORMER_MODEL)
+    if separator is None:
+        return None, None
     
     output_files = separator.separate(input_path)
     
@@ -103,11 +156,9 @@ def remove_reverb(vocals_path: str, output_dir: str) -> str:
     try:
         print("[~] Removing reverb/echo (UVR-DeEcho-DeReverb)...")
         
-        separator = Separator(
-            output_dir=output_dir,
-            output_format="wav"
-        )
-        separator.load_model(model_filename=config.DEREVERB_MODEL)
+        separator = _get_separator(output_dir, config.DEREVERB_MODEL)
+        if separator is None:
+            return vocals_path
         
         output_files = separator.separate(vocals_path)
         
@@ -160,11 +211,9 @@ def separate_backing_vocals(instrumental_path: str, output_dir: str) -> tuple[st
     try:
         print("[~] Separating backing vocals (mel_band_roformer_karaoke)...")
         
-        separator = Separator(
-            output_dir=output_dir,
-            output_format="wav"
-        )
-        separator.load_model(model_filename=config.MEL_BAND_ROFORMER_KARAOKE)
+        separator = _get_separator(output_dir, config.MEL_BAND_ROFORMER_KARAOKE)
+        if separator is None:
+            return instrumental_path, None
         
         output_files = separator.separate(instrumental_path)
         

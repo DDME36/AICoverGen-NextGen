@@ -67,6 +67,47 @@ def download_file(url: str, dest: Path, desc: str = "") -> bool:
         return False
 
 
+def pre_download_separator_models():
+    """
+    Pre-download audio-separator models to avoid slow first-run
+    This downloads models to audio-separator's cache directory
+    """
+    print()
+    print("[~] Pre-downloading audio-separator models...")
+    print("    (This may take a few minutes on first run)")
+    print()
+    
+    try:
+        from audio_separator.separator import Separator
+        
+        # Models to pre-download
+        separator_models = [
+            ("model_bs_roformer_ep_317_sdr_12.9755.ckpt", "BS-RoFormer (Vocal Separation)"),
+            ("UVR-DeEcho-DeReverb.pth", "DeEcho-DeReverb (Vocal Cleanup)"),
+            ("mel_band_roformer_karaoke_becruily.ckpt", "Mel-Band RoFormer Karaoke (Backing Separation)"),
+        ]
+        
+        # Create separator instance (this sets up the model directory)
+        separator = Separator(output_format="wav")
+        
+        for model_name, description in separator_models:
+            print(f"  ↓ Loading {description}...")
+            try:
+                separator.load_model(model_filename=model_name)
+                print(f"  ✓ {description}")
+            except Exception as e:
+                print(f"  ⚠️  {description}: {e}")
+        
+        print()
+        print("✅ Audio separator models ready!")
+        
+    except ImportError:
+        print("⚠️  audio-separator not installed, skipping pre-download")
+        print("   Install with: pip install audio-separator[gpu]")
+    except Exception as e:
+        print(f"⚠️  Error pre-downloading separator models: {e}")
+
+
 def main():
     print("=" * 60)
     print("🎵 AICoverGen NextGen - Model Downloader")
@@ -84,15 +125,18 @@ def main():
     print()
     print("=" * 60)
     if success_count == total_count:
-        print(f"✅ All {total_count} models downloaded successfully!")
+        print(f"✅ All {total_count} RVC models downloaded!")
     else:
-        print(f"⚠️  {success_count}/{total_count} models downloaded")
+        print(f"⚠️  {success_count}/{total_count} RVC models downloaded")
     print("=" * 60)
     
+    # Pre-download audio-separator models
+    pre_download_separator_models()
+    
     print()
-    print("📝 Note: BS-RoFormer (SDR 12.97) will be downloaded")
-    print("   automatically on first use.")
-    print()
+    print("=" * 60)
+    print("🎉 Setup complete! You can now run the app.")
+    print("=" * 60)
 
 
 if __name__ == "__main__":
