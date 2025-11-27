@@ -184,9 +184,21 @@ def generate_cover(song_input: str, voice_model: str, pitch_change: int = 0,
     
     output_format = output_format or config.DEFAULT_OUTPUT_FORMAT
     
+    # Create hash of RVC parameters to detect changes
+    f0_method_used = f0_method or config.DEFAULT_F0_METHOD
+    index_rate_used = index_rate if index_rate is not None else config.DEFAULT_INDEX_RATE
+    filter_radius_used = filter_radius if filter_radius is not None else config.DEFAULT_FILTER_RADIUS
+    rms_mix_rate_used = rms_mix_rate if rms_mix_rate is not None else config.DEFAULT_RMS_MIX_RATE
+    protect_used = protect if protect is not None else config.DEFAULT_PROTECT
+    
+    # Short hash of parameters for filename
+    import hashlib
+    params_str = f"{f0_method_used}_{index_rate_used}_{filter_radius_used}_{rms_mix_rate_used}_{protect_used}"
+    params_hash = hashlib.md5(params_str.encode()).hexdigest()[:6]
+    
     ai_vocals_path = os.path.join(
         song_dir,
-        f'{base_name}_{voice_model}_p{final_pitch}.wav'
+        f'{base_name}_{voice_model}_p{final_pitch}_{params_hash}.wav'
     )
     ai_cover_path = os.path.join(
         song_dir,
