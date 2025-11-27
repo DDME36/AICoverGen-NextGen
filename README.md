@@ -121,6 +121,22 @@ YouTube/Audio File
    Final AI Cover
 ```
 
+## 📁 Project Structure
+
+```
+src/
+├── config.py          # Configuration & paths
+├── downloader.py      # YouTube download
+├── separator.py       # Vocal separation
+├── voice_converter.py # RVC voice conversion
+├── mixer.py           # Audio mixing & effects
+├── pipeline.py        # Main pipeline orchestrator
+├── webui.py           # Gradio UI
+├── main.py            # Entry point
+├── rvc.py             # RVC core
+└── mdx.py             # MDX-Net fallback
+```
+
 ---
 
 ## 📝 Credits

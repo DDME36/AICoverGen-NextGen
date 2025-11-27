@@ -7,13 +7,18 @@ from argparse import ArgumentParser
 
 import gradio as gr
 
-from main import song_cover_pipeline
+# Handle both module and script execution
+try:
+    from .main import song_cover_pipeline
+    from . import config
+except ImportError:
+    from main import song_cover_pipeline
+    import config
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
-mdxnet_models_dir = os.path.join(BASE_DIR, 'mdxnet_models')
-rvc_models_dir = os.path.join(BASE_DIR, 'rvc_models')
-output_dir = os.path.join(BASE_DIR, 'song_output')
+# Use config paths
+rvc_models_dir = str(config.RVC_MODELS_DIR)
+mdxnet_models_dir = str(config.MDX_MODELS_DIR)
+output_dir = str(config.OUTPUT_DIR)
 
 
 def get_current_models(models_dir):
